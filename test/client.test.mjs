@@ -97,6 +97,36 @@ test('every RPC method the client calls exists on the gateway with matching para
   }
 })
 
+test('locked and unlocked renders use an identical hook sequence (Rules of Hooks regression)', () => {
+  // Real bug: the locked branch returned BEFORE useMemo ran, so unlocking made
+  // React see one more hook than the previous render registered →
+  // "Rendered more hooks than during the previous render" → white section.
+  const seq = []
+  const countingReact = {
+    useState(init) { seq.push('S'); return [typeof init === 'function' ? init() : init, () => {}] },
+    useEffect() { seq.push('E') },
+    useCallback(fn) { seq.push('C'); return fn },
+    useMemo(fn) { seq.push('M'); return fn() },
+    useRef(i) { seq.push('R'); return { current: i } },
+  }
+  let captured = null
+  const sandbox = { window: { __ModuleLoader__: { load(d) { captured = d } } }, console }
+  vm.createContext(sandbox)
+  vm.runInContext(src, sandbox)
+  const mod = captured.factory(id => (id === 'react' ? countingReact : requireStub(id)))
+  const api = new Proxy({}, { get: () => async () => [] })
+  const t = k => String(k)
+  const render = snapshot => {
+    seq.length = 0
+    mod.VaultXSection({ t, api, snapshot, setSnapshot() { }, reload() { } })
+    return seq.join('')
+  }
+  const locked = render({ exists: true, locked: true })
+  const unlocked = render({ exists: true, locked: false, entries: 0 })
+  assert.ok(locked.length > 0, 'locked render ran no hooks (stub not wired?)')
+  assert.equal(unlocked, locked, 'hook sequence changed between locked and unlocked renders')
+})
+
 test('wire argument names equal gateway parameter names exactly (strict, hand-curated table)', () => {
   // The generic scan above can miss spread/renaming; this table is the contract.
   const expected = {
