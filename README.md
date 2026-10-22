@@ -32,11 +32,11 @@ DSH 的设置页里多出一个 **VaultX** 面板：加密存储你的密码、A
 ## 安装
 
 ```bash
-# DSH Web 版
-dsh plugin --profile web add @luwenjiede/dsh-vaultx
+# DSH Web 版（npm 包尚未发布；当前以 GitHub 源安装）
+dsh plugin --profile web add github:luwenjiede/dsh-vaultx
 ```
 
-或在 WebUI：设置 → 插件 → 搜索 `dsh-vaultx`。加载后执行一次 `restart-dsh-web.sh`（或停用再启用），左侧设置页出现 **VaultX** 面板。
+加载后执行一次 `restart-dsh-web.sh`（或停用再启用；宿主内存缓存插件的 client bundle，刷新页面不重读），设置页出现 **VaultX** 面板。
 
 **首次使用**：面板里设置主密码 → 创建密码箱。推荐用环境变量注入主密码（免打字、免明文进配置）：
 
@@ -123,7 +123,7 @@ pnpm test               # 88 项：RFC 6238/4226 官方向量、信封往返、�
 - from **dsh-key-panel** (moruteaven): the zero-context-leak model — secrets are injected into the assistant's shell per execution via `ctx.shellEnv` and **never** returned by any tool, so they never enter the model transcript;
 - **fixes**: the vault no longer needs its master password at boot (locked-but-healthy state, fail-open), plaintext is never the storage format, high-sensitivity entries are a hard human-only channel (invisible to tools *and* to `$DSH_*`), every access leaves a hash-chained audit trail, deletes are two-phase, policy gates run both at registration and at call time.
 
-Install: `dsh plugin --profile web add @luwenjiede/dsh-vaultx`
+Install: `dsh plugin --profile web add github:luwenjiede/dsh-vaultx`
 
 The model works with `$DSH_*` references; you reveal values only in the settings panel or the CLI. `pnpm test` runs 88 checks including the official RFC 6238 vectors and a "no plaintext in tool results" hard assertion suite.
 
