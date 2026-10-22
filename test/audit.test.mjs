@@ -73,6 +73,27 @@ test('records never contain a "value" key (secrets must not be logged)', async (
   assert.ok(raw.includes('password'), 'field NAMES may be recorded')
 })
 
+test('concurrent appends serialize: no forked chain (regression: create-vault race)', async () => {
+  const dir = tmp()
+  const p = path.join(dir, 'audit.log')
+  const log = new AuditLog(p)
+  // Mix fire-and-forget (what retool did in the real host) with awaited writes.
+  // Without the queue, readTailLine (sync, before the first await) races and
+  // two records share a prev; with it, the chain stays linear.
+  const strays = []
+  const inflight = []
+  for (let i = 0; i < 30; i++) {
+    if (i % 3 === 0) strays.push(log.append({ actor: 'system', action: `fire${i}` }))
+    else inflight.push(log.append({ actor: 'operator', action: `await${i}` }))
+  }
+  await Promise.all(inflight)
+  const settled = await Promise.allSettled(strays)
+  assert.ok(settled.every(s => s.status === 'fulfilled'), 'queued stray appends must all land')
+  const res = await log.verify()
+  assert.equal(res.valid, true, `chain broken at ${res.brokenAt}`)
+  assert.equal(res.count, 30)
+})
+
 test('long tails: readTailLine handles multi-KB records', async () => {
   const dir = tmp()
   const p = path.join(dir, 'audit.log')
