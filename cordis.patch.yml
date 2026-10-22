@@ -1,0 +1,17 @@
+# @luwenjiede/dsh-vaultx — bundle patch.
+#
+# `dsh.bundle.patch` is mandatory for any package listed in
+# `dsh.profile.bundles`; the row id below is what a patch-layer entry must
+# match to toggle this plugin, and `name` must equal the package name the
+# loader imports (and the id lib/client.js registers via __ModuleLoader__.load).
+#
+# The master password is NEVER stored here: point `masterPasswordEnv` at an
+# env var name (e.g. DSH_VAULTX_PASSWORD) that the launch environment exports
+# from a 0600 secrets file. With no env var the plugin still loads — the
+# vault simply stays LOCKED until unlocked from the settings panel.
+
+- insert:
+    - id: vaultx
+      name: "@luwenjiede/dsh-vaultx"
+      config:
+        masterPasswordEnv: DSH_VAULTX_PASSWORD
