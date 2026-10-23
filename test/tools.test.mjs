@@ -174,6 +174,18 @@ test('vaultx_add stores plaintext securely and never echoes it back', async () =
   assert.equal(entry.env, 'DSH_GH_TEST')
 })
 
+test('vaultx_add accepts fields as JSON string (host wire format) — regression', async () => {
+  const { registered, s } = await ready(makeEnv())
+  const r = await registered.get('vaultx_add').execute({
+    title: 'Str', kind: 'api-key', env: 'DSH_STR_TEST',
+    fields: JSON.stringify({ apiKey: 'sk-string-delivered' }),
+  })
+  assert.equal(r.ok, true, JSON.stringify(r))
+  assert.equal(s.get(r.id).field('apiKey'), 'sk-string-delivered')
+  const bad = await registered.get('vaultx_add').execute({ title: 'X', fields: 'not-json' })
+  assert.equal(bad.ok, false, 'garbage json must fail with guidance, not store empty')
+})
+
 test('vaultx_reveal returns plaintext only via execute; high entries hidden at execute too', async () => {
   const { registered, s } = await ready(makeEnv({ accessMode: 'readonly' }))
   const e = s.add({ title: 'plain', kind: 'api-key', fields: { apiKey: 'sk-visible-test' } })
