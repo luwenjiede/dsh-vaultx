@@ -38,11 +38,11 @@ MasterPassword ──scrypt(N=32768,r=8,p=1,salt)──▶ MK ──wrap──�
 
 这是对 vault「缺密码炸树」和 key-panel「明文才敢启动」两个对立缺陷的同时回答：**可用性不靠牺牲静态加密换**。
 
-## 3. 模型永远看不到值（核心决策 #3）
+## 3. 存入全开、取出有门（核心决策 #3）
 
 三条硬不变量，任何策略档位都不放松：
 
-1. **没有任何工具返回明文**。list=摘要、get=掩码+强度、generate=只回 id。
+1. **取出姿态独立成旋钮** `modelReveal: deny/ask/allow`（默认 ask）：list=摘要、get=掩码+强度、generate/add=只回 id 不回值；`vaultx_reveal` 是唯一明文出口，默认每次调用弹人工审批（宿主 waterfall `kind:'ask'`）。
 2. **唯一带外通道** = shellEnv `resolve()`：宿主按次执行注入；声明阶段（variables）只有名字与描述，值只在执行瞬间出现在子进程环境里。
 3. **`high` 条目人工专用**：对 list/get/totp/set/delete 隐身，且**即使手改文件塞了 env 字段**，resolve 与声明两处都会拒绝（测试覆盖）。
 

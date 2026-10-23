@@ -1,7 +1,7 @@
 {
   "name": "@luwenjiede/dsh-vaultx",
-  "version": "0.1.0",
-  "description": "DSH VaultX — 终极密码箱。AES-256-GCM + scrypt 信封加密静态存储（取自 dsh-vault 的密码学内核），密钥值永不进入模型上下文、经 $DSH_* shellEnv 带外注入 shell（取自 dsh-key-panel 的零暴露设计），并以 fail-open 解锁 + 操作员策略 + 哈希链审计 + 双语文案设置面板补齐两者短板。",
+  "version": "0.2.0",
+  "description": "DSH 助手自己的密码箱:scrypt+AES-256-GCM 信封加密,助手可存入(vaultx_add)与取出(vaultx_reveal,默认每次审批);优先 $DSH_* 带外注入使值不进对话;锁定态 fail-open;哈希链审计;high 条目人工专用。",
   "type": "module",
   "main": "lib/index.js",
   "files": [
@@ -17,7 +17,7 @@
     "vaultx": "bin/vaultx.mjs"
   },
   "scripts": {
-    "test": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs test/tools.test.mjs test/contracts.test.mjs test/client.test.mjs",
+    "test": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs test/tools.test.mjs test/contracts.test.mjs test/client.test.mjs test/lifecycle.test.mjs",
     "contracts": "node test/contracts.test.mjs",
     "test:quick": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs"
   },

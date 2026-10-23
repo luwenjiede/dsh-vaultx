@@ -136,9 +136,9 @@ test('pre-execute gate denies vaultx_reveal; lets readonly list pass through', a
   const pass = await gate({ name: 'other_tool' }, next)
   assert.equal(pass, 'NEXT')
 
-  const reveal = await gate({ name: 'vaultx_reveal', arguments: { id: 'x' } }, next)
-  assert.equal(reveal.kind, 'deny')
-  assert.match(reveal.reason, /never to the model/)
+  const reveal = await gate({ name: 'vaultx_reveal', arguments: { id: 'x', reason: 'need it' } }, next)
+  assert.equal(reveal.kind, 'ask', 'default posture: plaintext reveal requires human approval')
+  assert.ok(reveal.displayReason && /明文|plaintext/i.test(reveal.displayReason.en + reveal.displayReason.zh), 'approval prompt must be human-readable')
 
   const list = await gate({ name: 'vaultx_list', arguments: {} }, next)
   assert.equal(list, 'NEXT') // readonly default: list is allowed through to next()

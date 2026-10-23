@@ -28,11 +28,21 @@ test('SEALED denies everything, even intent', () => {
   }
 })
 
-test('invariant #1: reveal is denied in EVERY non-sealed mode (no plaintext to the model)', () => {
+test('reveal posture: modelReveal=deny blocks, ask gates, allow passes (non-sealed)', () => {
   for (const m of ['readonly', 'write', 'edit']) {
-    const d = checkModelAccess(P({ accessMode: m }), 'vaultx_reveal')
+    const d = checkModelAccess(P({ accessMode: m, modelReveal: 'deny' }), 'vaultx_reveal')
     assert.equal(d.allowed, false)
-    assert.match(d.reason, /never to the model/)
+    const a = checkModelAccess(P({ accessMode: m }), 'vaultx_reveal') // default ask
+    assert.equal(a.allowed, true); assert.equal(a.ask, true)
+    const w = checkModelAccess(P({ accessMode: m, modelReveal: 'allow' }), 'vaultx_reveal')
+    assert.equal(w.allowed, true); assert.ok(!w.ask, 'allow posture must not demand approval')
+  }
+})
+
+test('reveal of a HIGH entry is denied even under modelReveal=allow (hard escape hatch)', () => {
+  for (const post of ['deny', 'ask', 'allow']) {
+    const d = checkModelAccess(P({ accessMode: 'edit', modelReveal: post }), 'vaultx_reveal', { sensitivity: 'high' })
+    assert.equal(d.allowed, false, post)
   }
 })
 
@@ -52,17 +62,19 @@ test('intent is always allowed (non-mutating)', () => {
   }
 })
 
-test('readonly: reads yes, writes/deletes no', () => {
+test('readonly: reads and CREATES yes; mutate/delete no', () => {
   const pol = P({ accessMode: 'readonly' })
   assert.equal(checkModelAccess(pol, 'vaultx_list').allowed, true)
   assert.equal(checkModelAccess(pol, 'vaultx_get').allowed, true)
-  assert.equal(checkModelAccess(pol, 'vaultx_generate').allowed, false)
-  assert.equal(checkModelAccess(pol, 'vaultx_set').allowed, false)
-  assert.equal(checkModelAccess(pol, 'vaultx_delete').allowed, false)
+  assert.equal(checkModelAccess(pol, 'vaultx_add').allowed, true)        // store what you were given
+  assert.equal(checkModelAccess(pol, 'vaultx_generate').allowed, true)   // create fresh secrets
+  assert.equal(checkModelAccess(pol, 'vaultx_set', { origin: 'model' }).allowed, false)   // mutate needs more
+  assert.equal(checkModelAccess(pol, 'vaultx_delete', { origin: 'model' }).allowed, false)
 })
 
-test('write: model-owned creates/updates; operator-owned immutable', () => {
+test('write: model may mutate own entries; operator-owned immutable; add works on sealed-adjacent', () => {
   const pol = P({ accessMode: 'write' })
+  assert.equal(checkModelAccess(pol, 'vaultx_add').allowed, true)
   assert.equal(checkModelAccess(pol, 'vaultx_generate', { origin: 'model' }).allowed, true)
   assert.equal(checkModelAccess(pol, 'vaultx_set', { origin: 'model' }).allowed, true)
   assert.equal(checkModelAccess(pol, 'vaultx_set', { origin: 'operator' }).allowed, false)

@@ -17,7 +17,7 @@ const PW = 'tool-master-123456'
 
 function tmpDir() { return fs.mkdtempSync(path.join(os.tmpdir(), 'vaultx-tools-')) }
 
-function makeEnv({ accessMode = 'readonly', totpViaModel = false } = {}) {
+function makeEnv({ accessMode = 'readonly', totpViaModel = false, revealPolicy } = {}) {
   const dir = tmpDir()
   const store = VaultStore.createNew({ path: path.join(dir, 'vault.json'), masterPassword: PW })
   const registered = new Map()
@@ -33,7 +33,7 @@ function makeEnv({ accessMode = 'readonly', totpViaModel = false } = {}) {
       await s.add({ title: 'GitHub', kind: 'login', sensitivity: 'high', fields: { password: 'high-value-123' } })
       await s.add({ title: 'Vault', kind: 'totp', sensitivity: 'normal', fields: { totp: 'JBSWY3DPEHPK3PXP' } })
       const policy = new PolicyStore(path.join(dir, 'policy.json'))
-      policy.load(); await policy.set({ accessMode, totpViaModel })
+      policy.load(); await policy.set({ accessMode, totpViaModel, ...(revealPolicy ? { modelReveal: revealPolicy } : {}) })
       const disposer = registerModelTools({
         ctx, store: () => s, policy: () => policy.get(),
         ledger: new ConfirmationLedger(),
@@ -47,12 +47,21 @@ function makeEnv({ accessMode = 'readonly', totpViaModel = false } = {}) {
 
 async function ready(env) { return env.register() }
 
-test('readonly registers read tools and no mutating ones', async () => {
+test('readonly registers read + create + reveal; not set/delete', async () => {
   const { registered } = await ready(makeEnv({ accessMode: 'readonly' }))
   assert.ok(registered.has('vaultx_list') && registered.has('vaultx_get') && registered.has('vaultx_intent'))
-  assert.ok(!registered.has('vaultx_generate'))
+  assert.ok(registered.has('vaultx_add'), 'assistant must be able to store')
+  assert.ok(registered.has('vaultx_generate'))
+  assert.ok(registered.has('vaultx_reveal'), 'reveal exists under ask posture (gated by approval, not absent)')
   assert.ok(!registered.has('vaultx_set'))
   assert.ok(!registered.has('vaultx_delete'))
+})
+
+test('reveal registration follows modelReveal: deny removes it', async () => {
+  const { registered } = await ready(makeEnv({ accessMode: 'readonly' , revealPolicy: 'deny'}))
+  assert.ok(!registered.has('vaultx_reveal'))
+  const allowed = await ready(makeEnv({ accessMode: 'readonly' }))
+  assert.ok(allowed.registered.has('vaultx_reveal'))
 })
 
 test('sealed registers NOTHING', async () => {
@@ -150,6 +159,33 @@ test('intent records audit and is always registered', async () => {
   assert.equal(env.audits[0].detail, 'deploy')
 })
 
+test('vaultx_add stores plaintext securely and never echoes it back', async () => {
+  const { registered, s } = await ready(makeEnv())
+  const r = await registered.get('vaultx_add').execute({
+    title: 'GitHub PAT', kind: 'api-key', env: 'DSH_GH_TEST',
+    fields: { apiKey: 'ghp-SUPER-SECRET-VALUE' }, tags: ['github'],
+  })
+  assert.equal(r.ok, true)
+  const dump = JSON.stringify(r)
+  assert.ok(!dump.includes('ghp-SUPER-SECRET-VALUE'), 'add leaked the stored value back into the tool result!')
+  const entry = s.get(r.id)
+  assert.equal(entry.field('apiKey'), 'ghp-SUPER-SECRET-VALUE') // encrypted round-trip works
+  assert.ok(entry.tags.includes('model'), 'add must auto-tag model ownership')
+  assert.equal(entry.env, 'DSH_GH_TEST')
+})
+
+test('vaultx_reveal returns plaintext only via execute; high entries hidden at execute too', async () => {
+  const { registered, s } = await ready(makeEnv({ accessMode: 'readonly' }))
+  const e = s.add({ title: 'plain', kind: 'api-key', fields: { apiKey: 'sk-visible-test' } })
+  await s.save()
+  const r = await registered.get('vaultx_reveal').execute({ id: e.id, field: 'apiKey', reason: 'test' })
+  assert.equal(r.ok, true)
+  assert.equal(r.value, 'sk-visible-test')
+  const high = s.entries().find(x => x.sensitivity === 'high')
+  const rh = await registered.get('vaultx_reveal').execute({ id: high.id, field: 'password', reason: 'test' })
+  assert.equal(rh.ok, false, 'execute-level defense: high entries not revealable')
+})
+
 test('locked vault: every tool answers with guidance, never throws', async () => {
   const dir = tmpDir()
   const { VaultStore: VS } = await import('../lib/store.js')
@@ -160,8 +196,9 @@ test('locked vault: every tool answers with guidance, never throws', async () =>
   const registered = new Map()
   const ctx = { tools: { register: d => { registered.set(d.name, d); return () => {} } } }
   registerModelTools({ ctx, store: () => created, policy: () => ({ accessMode: 'readonly' }), ledger: new ConfirmationLedger() })
+  const argsFor = { vaultx_add: { title: 't', fields: { password: 'p' } }, vaultx_reveal: { id: 'x', reason: 'p' }, vaultx_generate: { title: 't' }, vaultx_set: { id: 'x' }, vaultx_delete: { id: 'x' } }
   for (const [name, def] of registered) {
-    const r = await def.execute({ id: 'x', purpose: 'p' })
+    const r = await def.execute({ id: 'x', purpose: 'p', ...(argsFor[name] ?? {}) })
     // intent is legitimately ok:true while locked (it records only metadata)
     if (name === 'vaultx_intent') { assert.equal(r.ok, true); continue }
     assert.ok(r.locked === true || r.ok === false || r.found === false, `${name} must fail soft when locked`)
