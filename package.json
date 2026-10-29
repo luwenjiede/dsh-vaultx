@@ -1,6 +1,6 @@
 {
   "name": "@luwenjiede/dsh-vaultx",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "DSH 助手自己的密码箱:scrypt+AES-256-GCM 信封加密,助手可存入(vaultx_add)与取出(vaultx_reveal,默认每次审批);优先 $DSH_* 带外注入使值不进对话;锁定态 fail-open;哈希链审计;high 条目人工专用。",
   "type": "module",
   "main": "lib/index.js",
