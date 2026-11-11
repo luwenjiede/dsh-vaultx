@@ -28,10 +28,20 @@ test('generationBits reports TRUE generation entropy (P0-4)', () => {
 test('passphrase samples stay inside the wordlist, digits appended once', () => {
   for (let i = 0; i < 60; i++) {
     const p = generatePassphrase({ words: 5 })
-    const parts = p.split('-')
-    assert.equal(parts.length, 5)
-    for (const w of parts.slice(0, 4)) assert.ok(EFF_SHORT_WORDS.includes(w), `word not in list: ${w}`)
-    assert.match(parts[4], /^[a-z]{3,8}\d{2}$/, 'last word carries the 2-digit suffix')
+    // EFF list contains hyphenated words (yo-yo) — splitting on '-' alone
+    // yields 6 parts when it is drawn (CI caught this flake). Strip the
+    // 2-digit suffix first, then match words greedily against the list.
+    const m = p.match(/^(.*)\d{2}$/)
+    assert.ok(m, `missing digit suffix: ${p}`)
+    let rest = m[1]
+    let count = 0
+    while (rest.length > 0) {
+      const w = EFF_SHORT_WORDS.find(w => rest === w || rest.startsWith(w + '-'))
+      assert.ok(w, `unknown word at: ${rest}`)
+      rest = rest === w ? '' : rest.slice(w.length + 1)
+      count++
+    }
+    assert.equal(count, 5)
   }
 })
 
