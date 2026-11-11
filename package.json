@@ -8,6 +8,7 @@
     "lib",
     "bin",
     "docs",
+    "scripts",
     "cordis.patch.yml",
     "SECURITY.md",
     "README.md",
@@ -17,9 +18,10 @@
     "vaultx": "bin/vaultx.mjs"
   },
   "scripts": {
-    "test": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs test/tools.test.mjs test/contracts.test.mjs test/client.test.mjs test/lifecycle.test.mjs",
-    "contracts": "node test/contracts.test.mjs",
-    "test:quick": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs"
+    "test": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/generate.test.mjs test/mask.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs test/tools.test.mjs test/contracts.test.mjs test/client.test.mjs test/lifecycle.test.mjs test/hardening.test.mjs",
+    "test:core": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/generate.test.mjs test/mask.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs test/hardening.test.mjs",
+    "test:quick": "node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs",
+    "peers": "node scripts/link-peers.mjs"
   },
   "exports": {
     ".": "./lib/index.js",

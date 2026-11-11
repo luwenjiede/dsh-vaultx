@@ -138,7 +138,7 @@ test('wire argument names equal gateway parameter names exactly (strict, hand-cu
     strength: ['value', 'personal'], totpCode: ['id'],
     rotate: ['oldPassword', 'newPassword'],
     exportVault: ['targetPassword'], importVault: ['doc', 'password'],
-    getPolicy: [], setPolicy: ['accessMode', 'autoCapture', 'totpViaModel', 'envExport', 'modelReveal'],
+    getPolicy: [], setPolicy: ['accessMode', 'autoCapture', 'totpViaModel', 'envExport', 'modelReveal', 'revealRequiresConfirm'],
     recentAudit: ['limit'], verifyAudit: [], verifyVault: [], status: [],
   }
   for (const m of remoteList) {

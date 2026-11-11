@@ -20,7 +20,7 @@
  *   vaultx verify          # audit hash chain + vault decryptability
  *   vaultx export <target-password> [outfile]
  *   vaultx import <file> <password>
- *   vaultx rotate <old> <new>
+ *   vaultx rotate <old> <new>       # old 优先取 $DSH_VAULTX_PASSWORD；env 缺失时才用 argv
  *   vaultx lock-keep
  *
  * The master password is taken from DSH_VAULTX_PASSWORD (or --password-env
@@ -33,7 +33,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import process from 'node:process'
-import { VaultStore } from '../lib/store.js'
+import { VaultStore, defaultVaultPath, sanitizeDocument } from '../lib/store.js'
 import { AuditLog } from '../lib/audit.js'
 import { assess, label } from '../lib/strength.js'
 import { generatePassword, generatePassphrase, generateToken, generateTotpSecret } from '../lib/generate.js'
@@ -253,14 +253,15 @@ const commands = {
     const { AuditLog } = await import('../lib/audit.js')
     const audit = new AuditLog(path.join(DSH_HOME, 'vaultx', 'audit.log'))
     const chain = await audit.verify()
-    let vault = { ok: true, total: 0, broken: [] }
+    let vault = { ok: true, total: 0, broken: [], metadata: null }
     try {
       const store = await open(flags)
       for (const e of store.entries()) for (const f of e.fieldNames()) {
         try { e.field(f) } catch (err) { vault.broken.push({ id: e.id, field: f, error: err.message }) }
       }
       vault.total = store.size
-      vault.ok = vault.broken.length === 0
+      vault.metadata = store.verifyMetadata()
+      vault.ok = vault.broken.length === 0 && vault.metadata.ok
     } catch { /* no password provided: chain-only verify */ }
     printJson({ chain, vault })
   },
@@ -279,9 +280,17 @@ const commands = {
   async import({ flags, rest }) {
     const [file, password] = rest
     if (!file || !password) fail('usage: vaultx import <file> <password>')
-    const doc = JSON.parse(fs.readFileSync(file, 'utf8'))
-    const store = new VaultStore({ path: VAULT_PATH, doc, vaultKey: null })
+    let doc
+    try { doc = JSON.parse(fs.readFileSync(file, 'utf8')) } catch (err) { fail(`cannot read import file: ${err.message}`) }
+    // sanitizeDocument validates structure + prototype-safety BEFORE anything
+    // touches the live store (review P1-3).
+    const store = new VaultStore({ path: VAULT_PATH, doc: sanitizeDocument(doc), vaultKey: null })
     await store.unlock(password)
+    for (const e of store.entries()) for (const f of e.fieldNames()) {
+      try { e.field(f) } catch (err) { fail(`import rejected: entry "${e.title}" field "${f}" fails to decrypt (${err.message})`, 5) }
+    }
+    const meta = store.verifyMetadata()
+    if (!meta.ok) fail(`import rejected: metadata integrity failed for ${meta.broken.length} entries`, 6)
     await store.save()
     await audited({ action: 'cli-import', detail: `${store.size} entries from ${file}` })
     printJson({ ok: true, entries: store.size })
@@ -289,8 +298,11 @@ const commands = {
 
   async rotate({ flags, rest }) {
     const [oldPw, newPw] = rest
+    // readPassword() prefers the env var; an argv old password is only used
+    // when the env var is absent (review D-6 — document, don't surprise).
     const cur = readPassword(flags) ?? oldPw
-    if (!cur || !newPw) fail('usage: vaultx rotate <old> <new>   (old may come from the env var)')
+    if (!cur || !newPw) fail('usage: vaultx rotate <old> <new>   (old may come from the env var; env wins over argv)')
+    if (oldPw && readPassword(flags) && oldPw !== cur) fail('argv old password differs from $DSH_VAULTX_PASSWORD; env takes precedence — unset it or pass the env value', 2)
     const store = await open({ ...flags, password: cur })
     await store.changeMasterPassword(cur, newPw)
     await store.save()
@@ -302,7 +314,7 @@ const commands = {
 async function main() {
   const [, , cmd, ...argv] = process.argv
   if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
-    process.stdout.write(fs.readFileSync(new URL(import.meta.url), 'utf8').match(/Usage:\n(?:^ \*.*\n)+/)?.[0].replace(/^ \* /gm, '  ') ?? 'vaultx — see docs\n')
+    process.stdout.write(fs.readFileSync(new URL(import.meta.url), 'utf8').match(/Usage:\n(?:^ \*.*\n)+/m)?.[0].replace(/^ \* /gm, '  ') ?? 'vaultx — see docs\n')
     return
   }
   const handler = commands[cmd]
