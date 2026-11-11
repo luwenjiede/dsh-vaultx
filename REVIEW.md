@@ -107,9 +107,9 @@ env 规则全不验（P0-1 的校验函数正好复用）。`Entry` 的 `Object.
 
 ## 验证记录
 
-- `npm test`：97 pass / 0 fail（Node v24.22.2，symlink 宿主 peer 后）。
-- 缺陷探针：P0-1/2/3/4、P1-6 均以真实库调用复现，输出见审查会话。
-- 未验证：浏览器面板实际渲染（审查副本未安装进 profile，遵守只读审查边界）。
+- 第一轮审查时：`npm test` 97 pass / 0 fail（Node v24.22.2，symlink 宿主 peer 后）；缺陷探针 P0-1/2/3/4、P1-6 均以真实库调用复现。
+- 修复后（第二轮）：`npm test` **121 pass / 0 fail**（新增 hardening/generate/mask 三份回归测试）；`node scripts/link-peers.mjs` 5/5 linked；CLI `help/create/add/get --mask/verify` 全链路冒烟通过；浏览器面板实际渲染未验证（审查副本未安装进 profile，遵守只读边界）。
+- 交付：分支 `vaultx-hardening` → PR #1（https://github.com/luwenjiede/dsh-vaultx/pull/1）。
 
 ---
 
