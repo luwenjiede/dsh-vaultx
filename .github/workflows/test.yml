@@ -6,6 +6,8 @@ on:
   pull_request:
 
 jobs:
+  # Pure-crypto + store/policy/audit tests: zero host peers needed, so this
+  # matrix runs anywhere (including CI).
   core:
     runs-on: ubuntu-latest
     strategy:
@@ -18,7 +20,13 @@ jobs:
           node-version: ${{ matrix.node }}
       - run: node --test test/crypto.test.mjs test/totp.test.mjs test/strength.test.mjs test/generate.test.mjs test/mask.test.mjs test/store.test.mjs test/policy.test.mjs test/audit.test.mjs test/breach.test.mjs
 
+  # Host-integration suites (tools/contracts/client/lifecycle/hardening) need
+  # the @deepseek-ai/* peer packages, which ship inside a DSH installation and
+  # are not on npm. CI cannot resolve them, so this job only runs when a peer
+  # root is explicitly provided (self-hosted runner or manual dispatch with
+  # VAULTX_PEER_ROOT). Locally: `node scripts/link-peers.mjs && pnpm test`.
   host:
+    if: ${{ vars.VAULTX_PEER_ROOT != '' }}
     needs: core
     runs-on: ubuntu-latest
     steps:
@@ -26,6 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pnpm install --frozen-lockfile || npm install --no-audit --no-fund || true
       - run: node scripts/link-peers.mjs
-      - run: pnpm test
+        env:
+          VAULTX_PEER_ROOT: ${{ vars.VAULTX_PEER_ROOT }}
+      - run: node --test test/tools.test.mjs test/contracts.test.mjs test/client.test.mjs test/lifecycle.test.mjs test/hardening.test.mjs
