@@ -247,6 +247,37 @@ test('D-7 oversized detail is truncated before hashing (no false chain break)', 
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
+// ── Real-host verification: status poll must not wipe panel policy ─────────
+test('panel status() includes policy; Root polling merges instead of replacing snapshot', async () => {
+  // client-side: the poll must merge (setSnapshot(s => ...)), never replace
+  assert.ok(CLIENT_SRC.includes('setSnapshot(s => ({ ...(s ?? {}), ...st }))'), 'status poll must merge snapshot to keep policy')
+  // host-side: status() must carry the policy object
+  const dir = tmpDir()
+  process.env.VAULTX_STATUS_PW = PW
+  const { default: plugin } = await import('../lib/index.js')
+  const provided = {}
+  const ctx = {
+    tools: { register: () => () => {} },
+    shellEnv: { register: () => () => {} },
+    systemPrompt: { section() {} },
+    on() { return () => {} },
+    effect() {},
+    logger: { info() {}, warn() {} },
+    reflect: { provide: (n, s) => { provided[n] = s } },
+  }
+  plugin.apply(ctx, { storePath: path.join(dir, 'vault.json'), masterPasswordEnv: 'VAULTX_STATUS_PW', autoLockMinutes: 0 })
+  const gw = provided.vaultx ?? Object.values(provided)[0]
+  await gw.create(PW)
+  await gw.setPolicy('edit', null, null, null, 'allow', true)
+  const st = gw.status()
+  assert.ok(st.policy, 'status() must include policy for the panel')
+  assert.equal(st.policy.accessMode, 'edit')
+  assert.equal(st.policy.modelReveal, 'allow')
+  assert.equal(st.policy.revealRequiresConfirm, true)
+  delete process.env.VAULTX_STATUS_PW
+  fs.rmSync(dir, { recursive: true, force: true })
+})
+
 // ── P1-5: masking tightened ────────────────────────────────────────────────
 test('P1-5 short values are fully masked; long values leak at most 3+3', () => {
   assert.equal(maskValue(''), '')

@@ -127,8 +127,22 @@ test('locked and unlocked renders use an identical hook sequence (Rules of Hooks
   assert.equal(unlocked, locked, 'hook sequence changed between locked and unlocked renders')
 })
 
+test('gateway remote methods use plain identifier params (no defaults/destructuring/rest)', () => {
+  // Real-host regression: the Typert SRC gateway rejects `recentAudit(limit = 30)`
+  // at CALL time ("must use unique identifier parameters without destructuring,
+  // defaults, or rest") — the audit table silently never loaded. Lock it here.
+  const cls = gatewaySrc.slice(gatewaySrc.indexOf('class VaultXGateway'), gatewaySrc.indexOf('markRemoteMethods(VaultXGateway'))
+  for (const m of remoteList) {
+    const sig = cls.match(new RegExp('(?:async\\s+)?\\b' + m + '\\s*\\(([^)]*)\\)\\s*\\{'))
+    assert.ok(sig, `cannot locate gateway signature for ${m}`)
+    const params = sig[1]
+    assert.ok(!params.includes('='), `${m} has a default parameter value — Typert SRC rejects it: (${params})`)
+    assert.ok(!params.includes('{') && !params.includes('['), `${m} destructures parameters — Typert SRC rejects it`)
+    assert.ok(!params.includes('...'), `${m} uses rest parameters — Typert SRC rejects it`)
+  }
+})
+
 test('wire argument names equal gateway parameter names exactly (strict, hand-curated table)', () => {
-  // The generic scan above can miss spread/renaming; this table is the contract.
   const expected = {
     unlock: ['password'], create: ['password'], lock: [], list: [],
     reveal: ['id', 'field'], masked: ['id', 'field'],

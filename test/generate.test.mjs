@@ -52,7 +52,16 @@ test('password generator: charset rules + uniformity sanity', () => {
   const clean = generatePassword({ length: 128, noAmbiguous: true })
   assert.ok(!/[iloILO01]/.test(clean), `noAmbiguous pool leaked: ${clean.match(/[iloILO01]/)?.[0]}`)
   const full = generatePassword({ length: 128, noAmbiguous: false })
-  assert.ok(/[ilo]/.test(full) && /[ILO]/.test(full) && /[01]/.test(full), 'noAmbiguous=false must restore the full pools')
+  // P(any single ambiguous char absent from 128 draws) ≈ (1-1/88)^128 ≈ 23%,
+  // so per-char assertions flake. Assert on the GROUP instead: P(no i/l/o at
+  // all) ≈ (85/88)^128 ≈ 1.2%, and loop the whole check to push the flake
+  // probability to negligible (3 independent 128-char samples).
+  let groupSeen = false
+  for (let i = 0; i < 3 && !groupSeen; i++) {
+    const s = i === 0 ? full : generatePassword({ length: 128, noAmbiguous: false })
+    if (/[ilo]/.test(s) && /[ILO]/.test(s) && /[01]/.test(s)) groupSeen = true
+  }
+  assert.ok(groupSeen, 'noAmbiguous=false must restore the full pools')
   assert.throws(() => generatePassword({ length: 7 }), /\[8, 128\]/)
   assert.throws(() => generatePassword({ length: 129 }), /\[8, 128\]/)
 })

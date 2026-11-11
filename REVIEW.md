@@ -138,3 +138,28 @@ env 规则全不验（P0-1 的校验函数正好复用）。`Entry` 的 `Object.
 | D-7 | 审计 `detail`/`title` 入链前截断（2000/300），杜绝超长记录造成的假断链 |
 
 验证：`npm test` 121 pass / 0 fail（Node v24.22.2）；`scripts/link-peers.mjs` 在 fresh clone 可独立运行。
+
+---
+
+## 真机面板验收（2026-11-11 第三轮，容器内实测）
+
+修复版安装进 web profile（`plugin_manager install_bundle`，link 指向本目录），浏览器实测设置页 VaultX 面板。**验收中发现并修复了 3 个只有真机才暴露的 bug**：
+
+| 真机 bug | 根因 | 修复 |
+|---|---|---|
+| 面板徽章/开关显示与 policy.json 不符（显示 readonly/ask，实际 edit/allow） | `Root` 的 25s status 轮询整体替换 snapshot，而 `status()` 不含 policy 字段 → 每次轮询把已加载的 policy 抹掉，UI 回落到默认值 | `status()` 返回 `policy`；轮询改为 merge（`setSnapshot(s => ({...s, ...st}))`）；回归测试锁两端 |
+| Audit log 的 load 按钮点了没反应 | Typert SRC 网关**运行时拒绝默认参数**：`recentAudit(limit = 30)` 报 "must use unique identifier parameters without destructuring, defaults, or rest"（旧版就有，从未被面板路径测到） | 去掉默认值改函数体内兜底；新增契约测试扫描全部 remote 方法签名禁止 `=`/解构/rest |
+| 老库 7 条目永远 unsigned | MAC 回填只挂在 save 上，只读为主的库可能长期不写盘 | auto-unlock 与面板 unlock 成功后立即回填缺失 MAC 并落盘 |
+
+另修测试自身的概率性 flake（128 字符断言逐字符出现率 ≈77%，改为组断言 ×3 采样）。
+
+**最终验收证据（全部真机）**：
+- 面板徽章 `Editable / Allow / injected 4` 与 policy.json 完全一致；4 个策略开关全部正确回显
+- 搜索过滤：输入 "GitHub" 精确过滤到 1 条，清空恢复 7 条
+- Audit log load：**40 行渲染**（时间/actor/action/detail），Verify chain：**chain intact (218)**
+- Integrity check：**all fields decrypt (7)**；服务端 `verifyMetadata()` ok、7/7 条目 metaMac 落盘
+- P0-5 Reveal 再确认：点击弹出 `Show field "token" in plaintext?`，拒绝后**零明文上屏**
+- 编辑器（Save/Cancel）与生成器（4 种风格 + Store in vault）正常打开关闭
+- 磁盘扫描：vault.json 无任何明文值；文件 0600/目录 0700
+- `npm test` **123 pass / 0 fail × 3 连跑**（Node v24.22.2）
+- 截图：PANEL-verified.png
