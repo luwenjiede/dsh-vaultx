@@ -104,10 +104,11 @@ vaultx export <target-pw> backup.json / vaultx import backup.json <pw>
 ```bash
 git clone https://github.com/luwenjiede/dsh-vaultx && cd dsh-vaultx
 pnpm install            # 无运行时依赖；peer 由宿主解析
-pnpm test               # 88 项：RFC 6238/4226 官方向量、信封往返、防篡改、k-匿名、策略矩阵、工具零泄漏、client 注册契约
+node scripts/link-peers.mjs   # 把宿主的 @deepseek-ai/* peer 链进 node_modules（fresh clone 跑测试必需）
+pnpm test               # 121 项：RFC 6238/4226 官方向量、信封往返、防篡改、k-匿名、策略矩阵、工具零泄漏、client 注册契约、加固回归
 ```
 
-测试覆盖（全部 `node:test`，零外部框架）：密码学信封与 nonce 唯一性、HOTP/TOTP **RFC 官方向量**、store 原子写与 mode 钉死、policy 全矩阵、审计链断点检测、breach k-匿名（stub fetch，无真网络）、工具行为「无明文」硬断言、client bundle 注册形状与 **Typert wire 形参名逐一对账**。
+测试覆盖（全部 `node:test`，零外部框架）：密码学信封与 nonce 唯一性、HOTP/TOTP **RFC 官方向量**、store 原子写与 mode 钉死、policy 全矩阵、审计链断点检测与**跨进程锁**、breach k-匿名（stub fetch，无真网络）、工具行为「无明文」硬断言、client bundle 注册形状与 **Typert wire 形参名逐一对账**、以及 `test/hardening.test.mjs` 锁死的全部安全不变量（update 同权校验、high 不可由模型创建、env 唯一性、元数据 MAC、导入消毒、掩码边界、自动锁定不被模型活动续命）。
 
 ## 与上游 fork 网络无关
 
@@ -125,7 +126,7 @@ pnpm test               # 88 项：RFC 6238/4226 官方向量、信封往返、�
 
 Install: `dsh plugin --profile web add github:luwenjiede/dsh-vaultx`
 
-The model works with `$DSH_*` references; you reveal values only in the settings panel or the CLI. `pnpm test` runs 88 checks including the official RFC 6238 vectors and a "no plaintext in tool results" hard assertion suite.
+The model works with `$DSH_*` references; you reveal values only in the settings panel or the CLI. `pnpm test` runs 121 checks including the official RFC 6238 vectors and a "no plaintext in tool results" hard assertion suite.
 
 Threat model & limitations: [SECURITY.md](SECURITY.md) · Design deep-dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 

@@ -25,6 +25,7 @@ MasterPassword ──scrypt(N=32768,r=8,p=1,salt)──▶ MK ──wrap──�
 - **改主密码 = 重新包裹 VK**，所有字段密文一个字节不动（测试 `rotate master password re-wraps VK without re-encrypting fields` 锁死此性质）。这同时把"重加密中途断电丢库"整类风险消掉。
 - **check token**：固定明文 `vaultx-check-v1` 加密存头。解锁时 unwrap 失败或 check 验不过 → 错密码，不触碰任何条目；也是防爆破计数器（5 次锁 5 分钟）的判定依据。
 - 字段级 AAD = `entryId|fieldName|formatVersion`：密文与"位置"绑定。跨条目搬运密文（把 GitHub 的 password blob 挪到 AWS 的 password 位置）GCM 直接拒绝——有测试专门验这个。
+- **条目元数据 MAC**（P1-2 加固）：每个条目另存 `metaMac = HMAC(HMAC(VK, "vaultx-meta-mac-v1"), 规范化元数据投影)`。title/env/sensitivity/tags 这些明文元数据不再只靠文件权限保护——手改文件的调包（把 high 改 normal、换 env 名）会在 unlock 后的 `verifyMetadata()` 与 `vaultx verify` 里现形。合法 update 会重算 MAC；legacy 条目（无 MAC）在下次 save 时回填，不误报。
 - 为什么不用 argon2id：Node 原生没有，带第三方原生依赖违背"零依赖"。scrypt(N=2^15) 是 OWASP 认可的替代档位（Bitwarden 网页端同档）。
 
 ## 2. 锁定态是一等公民（核心决策 #2）
@@ -83,11 +84,12 @@ JSONL，每条含 `prev`（上一条 SHA-256）与 `hash`（本条除 hash 外�
 
 ## 8. 测试即规格
 
-88 项 `node:test`，没有一项是摆设：RFC 官方向量锁密码学基元；"无明文出现在工具结果" 是对融合核心的机器检验；wire 契约测试逐参对账（Typert 按形参名派生字段、拒绝多余键——这条隐性契约靠手写文档必翻车，靠测试锁死）；locale 测试锁 zh/en 键集一致与扁平化形状。改任何一条不变量，测试红。
+121 项 `node:test`，没有一项是摆设：RFC 官方向量锁密码学基元；"无明文出现在工具结果" 是对融合核心的机器检验；wire 契约测试逐参对账（Typert 按形参名派生字段、拒绝多余键——这条隐性契约靠手写文档必翻车，靠测试锁死）；locale 测试锁 zh/en 键集一致与扁平化形状；`test/hardening.test.mjs` 把每条安全不变量（update 同权校验、high 不可由模型创建、env 唯一、元数据 MAC、导入消毒、掩码边界、自动锁定不被模型活动续命）钉成回归。改任何一条不变量，测试红。
 
 ## 9. 已知取舍
 
 - **titles 明文**：支持锁定态搜索/列表；值永不明文。与 Bitwarden/KeePass 生态惯例一致。
 - **scrypt 内存档 64MiB**：maxmem 保守值，低配容器不至于 OOM；安全性靠 N=2^15 撑。
 - **进程内防爆破计数**：重启清零。攻击者拿到文件+能无限试的，本来也已经接近拿到 env 文件了；持久化计数会引入新的状态一致性问题，不值得。
-- **单进程假设**：一个宿主一个 vault 实例；同机多宿主共享同一 vault 文件需要跨进程锁（dsh-atomic-write 的 withFileLock 思路），留作二期。
+- **单进程假设（已缓解）**：一个宿主一个 vault 实例；同机多宿主共享同一 vault 文件仍需跨进程锁（dsh-atomic-write 的 withFileLock 思路），留作二期。但**审计链**已先补上跨进程互斥：append 走进程内串行队列 + `audit.log.lock` mkdir 原子锁文件（stale 超时接管），CLI 与宿主并发写也不会分叉。
+- **passphrase 词表**：完整 EFF short list 1（1296 词，CC-BY-3.0），见 lib/wordlist.js；每词真实熵 log2(1296) ≈ 10.34 bits，`vaultx_generate` 回报的 strengthBits 对 passphrase/token/totp 使用真实生成熵而非字符池估算（旧内联词表 698 词含重复，已废弃）。
