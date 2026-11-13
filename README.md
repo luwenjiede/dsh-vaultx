@@ -32,7 +32,10 @@ DSH 的设置页里多出一个 **VaultX** 面板：加密存储你的密码、A
 ## 安装
 
 ```bash
-# DSH Web 版（npm 包尚未发布；当前以 GitHub 源安装）
+# DSH Web 版（npm）
+dsh plugin --profile web add @luwenjiede/dsh-vaultx
+
+# 或从 GitHub 源安装
 dsh plugin --profile web add github:luwenjiede/dsh-vaultx
 ```
 
@@ -105,7 +108,7 @@ vaultx export <target-pw> backup.json / vaultx import backup.json <pw>
 git clone https://github.com/luwenjiede/dsh-vaultx && cd dsh-vaultx
 pnpm install            # 无运行时依赖；peer 由宿主解析
 node scripts/link-peers.mjs   # 把宿主的 @deepseek-ai/* peer 链进 node_modules（fresh clone 跑测试必需）
-pnpm test               # 121 项：RFC 6238/4226 官方向量、信封往返、防篡改、k-匿名、策略矩阵、工具零泄漏、client 注册契约、加固回归
+pnpm test               # 123 项：RFC 6238/4226 官方向量、信封往返、防篡改、k-匿名、策略矩阵、工具零泄漏、client 注册契约、加固回归
 ```
 
 测试覆盖（全部 `node:test`，零外部框架）：密码学信封与 nonce 唯一性、HOTP/TOTP **RFC 官方向量**、store 原子写与 mode 钉死、policy 全矩阵、审计链断点检测与**跨进程锁**、breach k-匿名（stub fetch，无真网络）、工具行为「无明文」硬断言、client bundle 注册形状与 **Typert wire 形参名逐一对账**、以及 `test/hardening.test.mjs` 锁死的全部安全不变量（update 同权校验、high 不可由模型创建、env 唯一性、元数据 MAC、导入消毒、掩码边界、自动锁定不被模型活动续命）。
@@ -124,9 +127,9 @@ pnpm test               # 121 项：RFC 6238/4226 官方向量、信封往返、
 - from **dsh-key-panel** (moruteaven): the zero-context-leak model — secrets are injected into the assistant's shell per execution via `ctx.shellEnv` and **never** returned by any tool, so they never enter the model transcript;
 - **fixes**: the vault no longer needs its master password at boot (locked-but-healthy state, fail-open), plaintext is never the storage format, high-sensitivity entries are a hard human-only channel (invisible to tools *and* to `$DSH_*`), every access leaves a hash-chained audit trail, deletes are two-phase, policy gates run both at registration and at call time.
 
-Install: `dsh plugin --profile web add github:luwenjiede/dsh-vaultx`
+Install: `dsh plugin --profile web add @luwenjiede/dsh-vaultx` (or from source: `dsh plugin --profile web add github:luwenjiede/dsh-vaultx`)
 
-The model works with `$DSH_*` references; you reveal values only in the settings panel or the CLI. `pnpm test` runs 121 checks including the official RFC 6238 vectors and a "no plaintext in tool results" hard assertion suite.
+The model works with `$DSH_*` references; you reveal values only in the settings panel or the CLI. `pnpm test` runs 123 checks including the official RFC 6238 vectors and a "no plaintext in tool results" hard assertion suite.
 
 Threat model & limitations: [SECURITY.md](SECURITY.md) · Design deep-dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
